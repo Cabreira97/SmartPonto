@@ -1,4 +1,4 @@
-name: CI
+name: CI - Continuous Integration
 
 on:
   pull_request:
@@ -29,14 +29,32 @@ jobs:
         run: pnpm exec tsc --noEmit
 
       - name: Lint
-        run: pnpm exec eslint . --max-warnings=0
+        run: pnpm lint
 
       - name: Build
-        run: pnpm exec next build
+        run: pnpm build
 
-      - name: Upload Next.js build artifacts (optional)
+      - name: Test Health Endpoint
+        run: |
+          # Start the server in background
+          pnpm start &
+          SERVER_PID=$!
+          
+          # Wait for server to start
+          echo "Waiting for server to start..."
+          sleep 10
+          
+          # Test health endpoint
+          curl -f http://localhost:3000/api/health || exit 1
+          
+          # Stop server
+          kill $SERVER_PID
+        continue-on-error: true
+
+      - name: Upload Next.js build artifacts
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: next-build
+          name: next-build-${{ github.sha }}
           path: .next
+          retention-days: 7

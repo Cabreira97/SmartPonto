@@ -50,67 +50,108 @@ pnpm start    # Inicia servidor de produção
 pnpm lint     # Executa o linter (ESLint)
 ```
 
-## 🔄 CI/CD e Deploy
+## 🔄 CI/CD e Deploy Zero-Downtime
 
-### O que é Cloud Agent?
+### O que é Zero-Downtime Deployment?
 
-**Cloud Agent** (ou **GitHub Actions Runner**) é um ambiente de execução virtual na nuvem que executa automaticamente os jobs definidos nos workflows do GitHub Actions. 
+**Zero-Downtime Deployment** é uma estratégia de implantação onde a aplicação permanece **100% disponível** durante atualizações. O sistema:
 
-Quando você faz push de código ou cria um pull request, o GitHub aloca automaticamente um cloud agent (máquina virtual) que:
+1. 🏗️ **Constrói a nova versão** em paralelo
+2. 🏥 **Verifica saúde** da nova versão (health checks)
+3. 🔄 **Redireciona tráfego** gradualmente
+4. ⏮️ **Faz rollback** automático se houver problemas
+5. ✅ **Finaliza** apenas após sucesso confirmado
 
-1. 🖥️ **Provisiona um ambiente limpo** - Cria uma máquina virtual Ubuntu, Windows ou macOS
-2. 📥 **Faz checkout do código** - Baixa o código do repositório
-3. ⚙️ **Executa os steps definidos** - Instala dependências, roda testes, faz build
-4. 🚀 **Faz deploy** - Envia a aplicação para produção (se configurado)
-5. 🧹 **Limpa o ambiente** - Remove a máquina virtual após conclusão
-
-### Workflows do SmartPonto
-
-Este projeto possui dois workflows:
+### Workflows Automatizados
 
 #### 1. CI (Continuous Integration) - `.github/workflows/ci.yml`
 
-Executa em **cloud agents do GitHub** sempre que há:
-- Push para a branch `main`
-- Pull request para `main`
+Executa automaticamente em **PRs** e **push para main**:
 
-**O que o cloud agent faz:**
 ```
-✓ Instala Node.js 20 e pnpm
-✓ Instala dependências do projeto
-✓ Verifica tipos TypeScript (tsc --noEmit)
-✓ Executa linter (eslint)
-✓ Cria build de produção (next build)
-✓ Faz upload dos artefatos de build
+✓ Verificação de tipos TypeScript
+✓ Análise de código (ESLint)
+✓ Build de produção
+✓ Teste de health check
+✓ Upload de artefatos
 ```
 
 #### 2. CD (Continuous Deployment) - `.github/workflows/cd.yml`
 
-Executa em **cloud agents do GitHub** sempre que há:
-- Push para a branch `main`
+Executa automaticamente em **push para main**:
 
-**O que o cloud agent faz:**
 ```
-✓ Instala Node.js 20 e pnpm
-✓ Instala dependências do projeto
-✓ Faz deploy para Vercel usando CLI
+✓ Build otimizado
+✓ Deploy para Vercel com zero-downtime
+✓ Health check com 5 retries
+✓ Rollback automático em falhas
+✓ Resumo de deployment
+```
+
+**Recursos de Zero-Downtime:**
+- ✅ Vercel gerencia blue-green deployment automaticamente
+- ✅ Health checks garantem estabilidade antes de promover
+- ✅ Rollback instantâneo se algo falhar
+- ✅ Versão anterior permanece ativa durante deploy
+- ✅ Sem interrupção de serviço
+
+### Endpoint de Saúde
+
+Health check disponível em `/api/health`:
+
+```bash
+curl https://seu-app.vercel.app/api/health
+```
+
+Resposta:
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-11-12T22:00:00.000Z",
+  "version": "0.1.0",
+  "uptime": 123.45
+}
 ```
 
 ### Configuração de Secrets
 
-Para o deploy funcionar, adicione o secret no repositório:
+Para habilitar deploy automático, configure em **Settings → Secrets → Actions**:
 
-1. Vá em **Settings → Secrets and variables → Actions**
-2. Crie um novo secret: `VERCEL_TOKEN`
-3. Obtenha o token em: https://vercel.com/account/tokens
+1. **`VERCEL_TOKEN`** (obrigatório) - Token da sua conta Vercel
+   - Obtenha em: https://vercel.com/account/tokens
+
+2. **`VERCEL_ORG_ID`** (opcional) - ID da organização
+   - Melhora performance do deploy
+
+3. **`VERCEL_PROJECT_ID`** (opcional) - ID do projeto
+   - Garante deploy no projeto correto
 
 ### Deploy Manual
 
-Para fazer deploy manualmente sem usar o cloud agent:
-
 ```bash
-VERCEL_TOKEN=seu_token npx vercel --prod --confirm
+# Via Vercel CLI
+npm install -g vercel
+vercel --prod --token seu_token
+
+# Via GitHub Actions
+# Vá em Actions → CD → Run workflow
 ```
+
+### Rollback
+
+Se precisar reverter um deploy:
+
+**Automático:** Health check falha → versão anterior mantida
+
+**Manual via Vercel:**
+```bash
+vercel rollback
+```
+
+**Manual via Dashboard:**
+Settings → Deployments → Promote previous deployment
+
+📖 **Documentação completa:** Veja [DEPLOYMENT.md](./DEPLOYMENT.md)
 
 ## 🏗️ Estrutura do Projeto
 
@@ -135,9 +176,12 @@ SmartPonto/
 
 ## 🔒 Segurança
 
-- Nunca commite secrets ou tokens no código
-- Use variáveis de ambiente para configurações sensíveis
-- Os cloud agents do GitHub Actions têm acesso aos secrets através de `${{ secrets.NOME }}`
+- ✅ Nunca commite secrets ou tokens no código
+- ✅ Use variáveis de ambiente para configurações sensíveis
+- ✅ Health checks previnem deploys quebrados
+- ✅ Rollback automático em caso de falhas
+- ✅ GitHub Actions acessa secrets via `${{ secrets.NOME }}`
+- ✅ Build isolado em ambientes limpos
 
 ## 📝 Contribuindo
 
@@ -146,7 +190,13 @@ SmartPonto/
 3. Push para a branch (`git push origin feature/nova-funcionalidade`)
 4. Abra um Pull Request
 
-O **cloud agent** automaticamente executará os testes e verificações do CI quando você abrir o PR!
+O **CI workflow** executará automaticamente:
+- ✅ Verificação de tipos
+- ✅ Análise de código (lint)
+- ✅ Build de produção
+- ✅ Testes de health check
+
+Após merge para `main`, o **CD workflow** fará deploy automático com zero-downtime!
 
 ## 📄 Licença
 
@@ -158,4 +208,4 @@ Para dúvidas ou problemas, abra uma issue no repositório.
 
 ---
 
-**Nota sobre Cloud Agents:** Os cloud agents (GitHub Actions runners) são gratuitos para repositórios públicos e têm limites mensais para repositórios privados. Consulte a [documentação do GitHub Actions](https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners) para mais informações.
+**Nota:** Este projeto utiliza GitHub Actions (cloud agents gratuitos) para automação de CI/CD com deploy zero-downtime. Para mais detalhes, consulte [DEPLOYMENT.md](./DEPLOYMENT.md) e a [documentação do GitHub Actions](https://docs.github.com/en/actions).
